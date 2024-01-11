@@ -66,8 +66,8 @@ export const CharacterController = ({
 
     // camera follow
     if (controls.current) {
-      const cameraDistanceY = window.innerWidth < 1024 ? 16 : 20;
-      const cameraDistanceZ = window.innerWidth < 1024 ? 12 : 16;
+      const cameraDistanceY = window.innerWidth < 1024 ? 20 : 20;
+      const cameraDistanceZ = window.innerWidth < 1024 ? 20 : 16;
       const playerWorldPos = vec3(rigidbody.current.translation())
       controls.current.setLookAt(
         playerWorldPos.x,
