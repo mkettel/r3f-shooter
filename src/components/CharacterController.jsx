@@ -1,9 +1,9 @@
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
 import { CharacterSoldier } from "./CharacterSoldier"
 import { CapsuleCollider, RigidBody, vec3 } from "@react-three/rapier"
-import { useFrame } from "@react-three/fiber"
+import { useFrame, useThree } from "@react-three/fiber"
 import { isHost } from "playroomkit"
-import { CameraControls } from "@react-three/drei"
+import { CameraControls, Billboard, Text } from "@react-three/drei"
 
 const MOVEMENT_SPEED = 200;
 const FIRE_RATE = 380;
@@ -21,6 +21,7 @@ export const CharacterController = ({
   joystick,
   userPlayer,
   onFire,
+  onKilled,
   ...props
 }) => {
 
@@ -30,6 +31,35 @@ export const CharacterController = ({
   const controls = useRef()
   const lastShoot = useRef(0)
   const [animation, setAnimation] = useState("Idle")
+
+
+  // Spawn the player randomly
+  const scene = useThree((state) => state.scene) // get the scene
+
+  const spawnRandomly = () => {
+    const spawns = [];
+
+    // get all the spawn points
+    for (let i = 0; i < 1000; i++) {
+      const spawn = scene.getObjectByName(`spawn_${i}`);
+      if (spawn) {
+        spawns.push(spawn);
+      } else {
+        break;
+      }
+    }
+    const spawnPos = spawns[Math.floor(Math.random() * spawns.length)].position; // get a random spawn point
+    rigidbody.current.setTranslation(spawnPos); // set the player's position to the spawn point
+  }
+
+
+  // Spawn the player randomly when they join
+  useEffect(() => {
+    if (isHost()) {
+      spawnRandomly();
+    }
+  }, [])
+
 
   // use Frame to update the character's position
   useFrame((_, delta) => {
@@ -48,6 +78,12 @@ export const CharacterController = ({
         playerWorldPos.z,
         true
       )
+    }
+
+    // Update player if they are dead
+    if (state.state.dead) {
+      setAnimation("Death")
+      return;
     }
 
     // update player based on the joystick input
@@ -114,7 +150,31 @@ export const CharacterController = ({
         linearDamping={12}
         lockRotations
         type={isHost() ? "dynamic" : "kinematicPosition"}
+        onIntersectionEnter={({other}) => {
+          // if we are host and other is bullet and we are alive
+          if (
+            isHost() &&
+            other.rigidBody.userData?.type === "bullet" &&
+            state.state.health > 0
+          ) {
+            const newHealth =
+              state.state.health - other.rigidBody.userData.damage;
+              if (newHealth <= 0) {
+                state.setState("deaths", state.state.deaths + 1); // add a death
+                state.setState("dead", true); // set the player to dead
+                state.setState("health", 0); // set the health to 0
+                rigidbody.current.setEnabled(false); // disable the rigidbody
+                setTimeout(() => {
+                  spawnRandomly(); // spawn the player randomly after 2 seconds
+                  state.setState("health", 100); // set the health back to 100
+                  state.setState("dead", false); // set the player back to alive
+                }, 2000)
+                onKilled(state.id, other.rigidBody.userData.player); // tell the other player they killed us
+              }
+          }
+        }}
         >
+        <PlayerInfo state={state.state} />
         <group ref={character}>
           <CharacterSoldier
             color={state.state.profile?.color}
@@ -173,5 +233,27 @@ const Crosshair = (props) => {
         <meshBasicMaterial color="black" opacity={0.2} transparent />
       </mesh>
     </group>
+  );
+};
+
+// Create a billboard to show the player's name and health
+const PlayerInfo = ({ state }) => {
+  const health = state.health;
+  const name = state.profile.name;
+  return (
+    <Billboard position-y={2.5}>
+      <Text position-y={0.36} fontSize={0.4}>
+        {name}
+        <meshBasicMaterial color={state.profile.color} />
+      </Text>
+      <mesh position-z={-0.1}>
+        <planeGeometry args={[1, 0.2]} />
+        <meshBasicMaterial color="black" transparent opacity={0.5} />
+      </mesh>
+      <mesh scale-x={health / 100} position-x={-0.5 * (1 - health / 100)}>
+        <planeGeometry args={[1, 0.2]} />
+        <meshBasicMaterial color="red" />
+      </mesh>
+    </Billboard>
   );
 };

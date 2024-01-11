@@ -1,16 +1,22 @@
 import { Environment, OrbitControls } from "@react-three/drei";
 import { Map } from "./Map";
 import { useEffect, useState } from "react";
-import { Joystick, insertCoin, myPlayer, onPlayerJoin } from "playroomkit";
+import { Joystick, insertCoin, myPlayer, onPlayerJoin, useMultiplayerState } from "playroomkit";
 import { CharacterController } from "./CharacterController";
 import { Bullet } from "./Bullet";
+import { isHost } from "playroomkit";
 
 export const Experience = () => {
 
   // State to store players
   const [players, setPlayers] = useState([]);
-  // Bullet List
+  // Bullet List Locally
   const [bullets, setBullets] = useState([]);
+  // Networked bullets
+  const [networkBullets, setNetworkBullets] = useMultiplayerState("bullets", []); // Sync bullets across all players
+
+  const [hits, setHits] = useState([]);
+  const [networkHits, setNetworkHits] = useMultiplayerState("hits", []); // Sync hits across all players
 
   // Fire a bullet
   const onFire = (bullet) => {
@@ -22,6 +28,11 @@ export const Experience = () => {
   const onHit = (bulletId) => {
     setBullets((bullets) => bullets.filter((b) => b.id !== bulletId))
   }
+
+  // Sync bullets when local bullets change
+  useEffect(() => {
+    setNetworkBullets(bullets); // set the networked bullets to the local bullets list
+  }, [bullets])
 
   const start = async () => {
     // Start the game
@@ -50,6 +61,14 @@ export const Experience = () => {
     start();
   }, [])
 
+  // When a player is killed
+  const onKilled = (_victim, killer) => {
+    const killerState = players.find((p) => p.state.id === killer); // find the killer
+    if (killerState) {
+      killerState.state.setState("kills", killerState.state.state.kills + 1); // add a kill
+    }
+  }
+
   return (
     <>
       <Map />
@@ -59,13 +78,13 @@ export const Experience = () => {
           state={state}
           userPlayer={state.id === myPlayer()?.id}
           joystick={joystick}
-          position-x={index * 2}
           onFire={onFire}
+          onKilled={onKilled}
         />
       ))}
 
       {/* Bullets */}
-      {bullets.map((bullet) => (
+      {(isHost() ? bullets : networkBullets).map((bullet) => (
         <Bullet key={bullet.id} {...bullet} onHit={() => onHit(bullet.id)} />
       ))}
 
