@@ -150,27 +150,29 @@ export const CharacterController = ({
         linearDamping={12}
         lockRotations
         type={isHost() ? "dynamic" : "kinematicPosition"}
-        onIntersectionEnter={({other}) => {
-          // if we are host and other is bullet and we are alive
+        onIntersectionEnter={({ other }) => {
           if (
             isHost() &&
-            other.rigidBody.userData?.type === "bullet" &&
+            other.rigidBody.userData.type === "bullet" &&
             state.state.health > 0
           ) {
             const newHealth =
               state.state.health - other.rigidBody.userData.damage;
-              if (newHealth <= 0) {
-                state.setState("deaths", state.state.deaths + 1); // add a death
-                state.setState("dead", true); // set the player to dead
-                state.setState("health", 0); // set the health to 0
-                rigidbody.current.setEnabled(false); // disable the rigidbody
-                setTimeout(() => {
-                  spawnRandomly(); // spawn the player randomly after 2 seconds
-                  state.setState("health", 100); // set the health back to 100
-                  state.setState("dead", false); // set the player back to alive
-                }, 2000)
-                onKilled(state.id, other.rigidBody.userData.player); // tell the other player they killed us
-              }
+            if (newHealth <= 0) {
+              state.setState("deaths", state.state.deaths + 1);
+              state.setState("dead", true);
+              state.setState("health", 0);
+              rigidbody.current.setEnabled(false);
+              setTimeout(() => {
+                spawnRandomly();
+                rigidbody.current.setEnabled(true);
+                state.setState("health", 100);
+                state.setState("dead", false);
+              }, 2000);
+              onKilled(state.id, other.rigidBody.userData.player);
+            } else {
+              state.setState("health", newHealth);
+            }
           }
         }}
         >
